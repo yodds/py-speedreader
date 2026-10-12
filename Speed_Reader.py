@@ -7,14 +7,14 @@ class ProSpeedReader:
     def __init__(self, root):
         self.root = root
         self.root.title("Ultimate Python Speed Reader")
-        self.root.geometry("800x700") # Made wider for the context view
+        self.root.geometry("850x700")  # Slightly wider to comfortably house the new +/- buttons
         
         # --- State Variables ---
         self.is_reading = False
         self.words = []
         self.current_word_index = 0
         self.wpm = 300
-        self.context_width = 4 # How many words to show on left/right
+        self.context_width = 4  # How many words to show on left/right
         
         self.start_time = 0
         self.elapsed_time = 0 
@@ -35,13 +35,12 @@ class ProSpeedReader:
         self.word_display.bind("<Key>", lambda e: "break")
 
         # 2. Context Line (The "Ticker Tape")
-        # We use a grid of 3 labels to keep the middle word locked in place
         self.context_frame = tk.Frame(root, bg="#e0e0e0", pady=10)
         self.context_frame.pack(fill='x', padx=20, pady=20)
         
-        self.context_frame.columnconfigure(0, weight=1) # Left side expands
-        self.context_frame.columnconfigure(1, weight=0) # Center stays fixed
-        self.context_frame.columnconfigure(2, weight=1) # Right side expands
+        self.context_frame.columnconfigure(0, weight=1)  # Left side expands
+        self.context_frame.columnconfigure(1, weight=0)  # Center stays fixed
+        self.context_frame.columnconfigure(2, weight=1)  # Right side expands
 
         self.lbl_left = tk.Label(self.context_frame, text="", 
                                  font=("Arial", 14), fg="#666666", bg="#e0e0e0", anchor="e")
@@ -91,7 +90,7 @@ class ProSpeedReader:
                                        width=14)
         self.toggle_button.pack(side=tk.LEFT, padx=10)
 
-        # Forward Button (New!)
+        # Forward Button
         tk.Button(controls_frame, text="Fwd >>", command=self.step_forward, 
                   bg="#FF9800", fg="white", font=("Arial", 10, "bold"), width=8).pack(side=tk.LEFT, padx=5)
 
@@ -99,14 +98,29 @@ class ProSpeedReader:
         tk.Button(controls_frame, text="Restart", command=self.restart_reading, 
                   bg="#607D8B", fg="white", font=("Arial", 10, "bold"), width=8).pack(side=tk.LEFT, padx=15)
 
-        # WPM Slider
-        self.wpm_scale = tk.Scale(controls_frame, from_=60, to=800, 
+        # WPM Adjuster Container with - / + Buttons (Feature 1)
+        wpm_box = tk.Frame(controls_frame)
+        wpm_box.pack(side=tk.LEFT, padx=5)
+
+        tk.Button(wpm_box, text="−", command=lambda: self.adjust_wpm(-1),
+                  font=("Arial", 10, "bold"), width=2).pack(side=tk.LEFT, padx=2)
+
+        self.wpm_scale = tk.Scale(wpm_box, from_=60, to=800, 
                                   orient=tk.HORIZONTAL, label="Target WPM",
-                                  command=self.update_wpm, length=150)
+                                  command=self.update_wpm, length=140)
         self.wpm_scale.set(self.wpm)
-        self.wpm_scale.pack(side=tk.LEFT, padx=10)
+        self.wpm_scale.pack(side=tk.LEFT, padx=2)
+
+        tk.Button(wpm_box, text="+", command=lambda: self.adjust_wpm(1),
+                  font=("Arial", 10, "bold"), width=2).pack(side=tk.LEFT, padx=2)
 
     # --- Helpers ---
+
+    def adjust_wpm(self, delta):
+        """Feature 1: Increment or decrement WPM by 1."""
+        new_val = max(60, min(800, self.wpm + delta))
+        self.wpm_scale.set(new_val)
+        self.wpm = new_val
 
     def paste_text(self):
         try:
@@ -117,7 +131,14 @@ class ProSpeedReader:
             pass
 
     def clear_text(self):
-        self.restart_reading()
+        """Feature 3: Clears the entire buffer, tokens, and active displays."""
+        self.is_reading = False
+        self.words = []
+        self.current_word_index = 0
+        self.elapsed_time = 0
+        self.session_start = 0
+        self.toggle_button.config(text="Start Reading", bg="#4CAF50", fg="white")
+        
         self.text_input.delete("1.0", tk.END)
         self.update_display("Ready")
 
@@ -127,7 +148,7 @@ class ProSpeedReader:
     def update_context_width(self, val):
         self.context_width = int(val)
         # Update display immediately if we have words
-        if self.words:
+        if self.words and self.current_word_index < len(self.words):
             word = self.words[self.current_word_index]
             self.update_display(word)
 
@@ -141,7 +162,8 @@ class ProSpeedReader:
         
         if color_center and len(main_word) > 1:
             mid_index = len(main_word) // 2
-            if len(main_word) % 2 == 0: mid_index -= 1 
+            if len(main_word) % 2 == 0: 
+                mid_index -= 1 
             start_idx = f"1.{mid_index}"
             end_idx = f"1.{mid_index + 1}"
             self.word_display.tag_add("red_highlight", start_idx, end_idx)
@@ -165,7 +187,6 @@ class ProSpeedReader:
         end_idx = min(len(self.words), self.current_word_index + 1 + self.context_width)
         right_words = self.words[self.current_word_index + 1 : end_idx]
         self.lbl_right.config(text=" ".join(right_words))
-
 
     # --- Control Logic ---
 
@@ -194,10 +215,11 @@ class ProSpeedReader:
             self.resume_or_start_reading()
 
     def resume_or_start_reading(self):
-        if self.current_word_index == 0:
+        if self.current_word_index == 0 or not self.words:
             raw_text = self.text_input.get("1.0", tk.END).replace('\n', ' ')
             self.words = raw_text.split()
-            if not self.words: return
+            if not self.words: 
+                return
             self.elapsed_time = 0
             self.session_start = 0
 
@@ -246,28 +268,30 @@ class ProSpeedReader:
         while self.is_reading and self.current_word_index < len(self.words):
             word = self.words[self.current_word_index]
             
-            # Update GUI (Must use logic to avoid threading crashes, 
-            # but for simple Tkinter apps, direct calls often work. 
-            # ideally use root.after, but this keeps code copy-pasteable and simple)
             self.update_display(word, color_center=True)
             
-            # --- Smart Timing ---
+            # --- Feature 2: Smart Adaptive Timing ---
             base_delay = 60 / self.wpm
-            actual_delay = base_delay
+            multiplier = 1.0
 
-            if '-' in word:
-                actual_delay = base_delay * 1.5
-            elif len(word) > 12:
-                actual_delay = base_delay * 1.5
+            clean_word = word.strip(".,!?;:\"'()[]{}")
+            if '-' in clean_word:
+                # Add delay proportional to the number of hyphenated parts
+                parts = len(clean_word.split('-'))
+                multiplier += max(0.6, (parts - 1) * 0.5)
+            elif len(clean_word) > 12:
+                # Scale up delay for long compound or multi-syllabic words
+                multiplier += 0.5 + ((len(clean_word) - 12) * 0.08)
 
+            # Punctuation multiplier
             if word.endswith('.'):
-                actual_delay = actual_delay * 3.0 
+                multiplier *= 3.0 
             elif word.endswith('!') or word.endswith('?'):
-                 actual_delay = actual_delay * 3.0 
+                multiplier *= 3.0 
             elif word.endswith(',') or word.endswith(';') or word.endswith(':'):
-                actual_delay = actual_delay * 2.0 
+                multiplier *= 2.0 
             
-            time.sleep(actual_delay)
+            time.sleep(base_delay * multiplier)
             
             if self.is_reading:
                 self.current_word_index += 1
